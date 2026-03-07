@@ -2,6 +2,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated, // Added
+  Dimensions,
   PanResponder,
   Pressable,
   StyleSheet,
@@ -10,6 +12,7 @@ import {
 } from "react-native";
 
 const STORAGE_KEY = "@holidays_data";
+const { height } = Dimensions.get("window"); // To determine slide distance
 
 export default function CalendarHome() {
   const now = new Date();
@@ -19,6 +22,10 @@ export default function CalendarHome() {
   const [selectedDate, setSelectedDate] = useState<number | null>(null);
   const [holidayMap, setHolidayMap] = useState<Record<string, string>>({});
   const [isSyncing, setIsSyncing] = useState(false);
+
+  // Animation state
+  const slideAnim = useRef(new Animated.Value(-height)).current;
+  const [settingsVisible, setSettingsVisible] = useState(false);
 
   const isSwiping = useRef(false);
 
@@ -55,6 +62,15 @@ export default function CalendarHome() {
     } finally {
       setIsSyncing(false);
     }
+  };
+
+  const toggleSettings = (show: boolean) => {
+    setSettingsVisible(show);
+    Animated.timing(slideAnim, {
+      toValue: show ? 0 : -height,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
   };
 
   const viewMonth = viewDate.getMonth();
@@ -99,22 +115,48 @@ export default function CalendarHome() {
 
   const panResponder = useRef(
     PanResponder.create({
-      onMoveShouldSetPanResponder: (_, gesture) => Math.abs(gesture.dx) > 40,
+      onMoveShouldSetPanResponder: (_, gesture) =>
+        Math.abs(gesture.dx) > 20 || Math.abs(gesture.dy) > 20,
       onPanResponderRelease: (_, gesture) => {
-        if (gesture.dx > 60) handleSwipe("PREV");
-        else if (gesture.dx < -60) handleSwipe("NEXT");
+        // Horizontal Swipes
+        if (Math.abs(gesture.dx) > Math.abs(gesture.dy)) {
+          if (gesture.dx > 60) handleSwipe("PREV");
+          else if (gesture.dx < -60) handleSwipe("NEXT");
+        }
+        // Vertical Swipes (Top area check)
+        else if (gesture.dy > 60 && gesture.y0 < 250) {
+          toggleSettings(true);
+        }
         isSwiping.current = false;
       },
     }),
   ).current;
 
-  // Highlight logic: Selected day OR Today
   const activeDayIndex = selectedDate
     ? new Date(viewYear, viewMonth, selectedDate).getDay()
     : now.getDay();
 
   return (
     <View style={styles.container} {...panResponder.panHandlers}>
+      {/* Settings Overlay - Slides from Top */}
+      <Animated.View
+        style={[
+          styles.settingsPanel,
+          { transform: [{ translateY: slideAnim }] },
+        ]}
+      >
+        <View style={styles.settingsContent}>
+          <Text style={styles.settingsTitle}>SETTINGS</Text>
+          <Text style={styles.yearText}>Holiday Sync: US</Text>
+          <Pressable
+            style={styles.closeButton}
+            onPress={() => toggleSettings(false)}
+          >
+            <Text style={styles.closeButtonText}>CLOSE</Text>
+          </Pressable>
+        </View>
+      </Animated.View>
+
       {/* Header */}
       <View style={styles.row}>
         <Pressable
@@ -142,7 +184,7 @@ export default function CalendarHome() {
         </View>
       </View>
 
-      {/* Week Labels - Centered above columns */}
+      {/* Week Labels */}
       <View style={styles.weekRow}>
         {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
           <View key={i} style={styles.dayBox}>
@@ -219,7 +261,7 @@ export default function CalendarHome() {
         ))}
       </View>
 
-      {/* Footer Info Area */}
+      {/* Footer */}
       <View style={styles.footer}>
         {selectedDate && (
           <>
@@ -246,16 +288,51 @@ export default function CalendarHome() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 10, backgroundColor: "#fff", paddingTop: 80 },
+  // Settings Styles
+  settingsPanel: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: "50%",
+    backgroundColor: "#fff",
+    zIndex: 1000,
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
+    elevation: 5,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
+  settingsContent: {
+    flex: 1,
+    paddingTop: 80,
+    paddingHorizontal: 20,
+    justifyContent: "center",
+  },
+  settingsTitle: {
+    fontSize: 44,
+    fontWeight: "600",
+    color: "#333",
+    marginBottom: 10,
+  },
+  closeButton: {
+    marginTop: 40,
+    paddingVertical: 10,
+  },
+  closeButtonText: {
+    fontSize: 44,       // Matches your year/settings font size
+    fontWeight: "600",
+    color: "#FB6A03",   // Your brand orange
+  },
+  // Existing Styles
   row: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-end",
   },
-  dateText: {
-    fontSize: 160,
-    fontWeight: "bold",
-    color: "#333",
-  },
+  dateText: { fontSize: 160, fontWeight: "bold", color: "#333" },
   weekdayText: {
     fontSize: 40,
     fontWeight: "600",
@@ -276,22 +353,19 @@ const styles = StyleSheet.create({
     paddingRight: 10,
     color: "#999",
   },
-
-  // Updated Styles for Vertical Alignment
   weekRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    paddingHorizontal: 10, // Matches GridRow padding
+    paddingHorizontal: 10,
     marginTop: 20,
   },
   dayBox: {
-    width: 50, // Matches DateCircle width
-    height: 50, // Matches DateCircle height
+    width: 50,
+    height: 50,
     justifyContent: "center",
     alignItems: "center",
   },
   dayText: { fontSize: 18, fontWeight: "600", color: "#999" },
-
   calendarGrid: { marginTop: 10 },
   gridRow: {
     flexDirection: "row",
