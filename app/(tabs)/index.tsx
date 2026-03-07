@@ -64,7 +64,6 @@ export default function CalendarHome() {
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
   const firstDayOfMonth = new Date(viewYear, viewMonth, 1).getDay();
 
-  // DYNAMIC GRID: Logic to determine if 5 or 6 rows are needed
   const totalSlotsNeeded = firstDayOfMonth + daysInMonth;
   const numRows = totalSlotsNeeded > 35 ? 6 : 5;
   const totalCells = numRows * 7;
@@ -109,6 +108,11 @@ export default function CalendarHome() {
     }),
   ).current;
 
+  // Highlight logic: Selected day OR Today
+  const activeDayIndex = selectedDate
+    ? new Date(viewYear, viewMonth, selectedDate).getDay()
+    : now.getDay();
+
   return (
     <View style={styles.container} {...panResponder.panHandlers}>
       {/* Header */}
@@ -138,11 +142,21 @@ export default function CalendarHome() {
         </View>
       </View>
 
-      {/* Week Labels */}
+      {/* Week Labels - Centered above columns */}
       <View style={styles.weekRow}>
         {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
           <View key={i} style={styles.dayBox}>
-            <Text style={styles.dayText}>{d}</Text>
+            <Text
+              style={[
+                styles.dayText,
+                i === activeDayIndex && {
+                  color: "#FB6A03",
+                  fontWeight: "bold",
+                },
+              ]}
+            >
+              {d}
+            </Text>
           </View>
         ))}
       </View>
@@ -241,7 +255,6 @@ const styles = StyleSheet.create({
     fontSize: 160,
     fontWeight: "bold",
     color: "#333",
-    lineHeight: 160,
   },
   weekdayText: {
     fontSize: 40,
@@ -251,20 +264,34 @@ const styles = StyleSheet.create({
     paddingLeft: 10,
   },
   rightColumn: { alignItems: "flex-end" },
-  monthText: { fontSize: 48, fontWeight: "600", color: "#333" },
-  yearText: { fontSize: 44, fontWeight: "600", color: "#999" },
+  monthText: {
+    fontSize: 48,
+    fontWeight: "600",
+    paddingRight: 10,
+    color: "#333",
+  },
+  yearText: {
+    fontSize: 44,
+    fontWeight: "600",
+    paddingRight: 10,
+    color: "#999",
+  },
+
+  // Updated Styles for Vertical Alignment
   weekRow: {
     flexDirection: "row",
     justifyContent: "space-between",
+    paddingHorizontal: 10, // Matches GridRow padding
     marginTop: 20,
   },
   dayBox: {
-    width: 52,
-    height: 40,
+    width: 50, // Matches DateCircle width
+    height: 50, // Matches DateCircle height
     justifyContent: "center",
     alignItems: "center",
   },
-  dayText: { fontSize: 16, fontWeight: "600", color: "#999" },
+  dayText: { fontSize: 18, fontWeight: "600", color: "#999" },
+
   calendarGrid: { marginTop: 10 },
   gridRow: {
     flexDirection: "row",
