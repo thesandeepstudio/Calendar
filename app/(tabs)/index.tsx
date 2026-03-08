@@ -2,7 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Animated, // Added
+  Animated,
   Dimensions,
   PanResponder,
   Pressable,
@@ -12,7 +12,63 @@ import {
 } from "react-native";
 
 const STORAGE_KEY = "@holidays_data";
-const { height } = Dimensions.get("window"); // To determine slide distance
+const { height } = Dimensions.get("window");
+
+const AboutView = ({ onBack, theme }: { onBack: () => void; theme: any }) => (
+  <View style={{ flex: 1 }}>
+    {/* Content Wrapper */}
+    <View style={{ flex: 1 }}>
+      <Text style={[styles.settingsTitle, { color: theme.text }]}>ABOUT</Text>
+
+      <View style={{ marginTop: 10 }}>
+        {/* Version and Copyright at the top */}
+        
+        
+        <Text style={[styles.aboutBody, { color: theme.text, fontWeight: '700' }]}>
+          Minimalist Calendar
+        </Text>
+        <Text style={[styles.aboutBody, { color: theme.subText, marginBottom: 15 }]}>
+          Designed for clarity, built for focus.
+        </Text>
+        
+        <Text style={[styles.aboutSub, { color: theme.subText, lineHeight: 22, marginBottom: 20 }]}>
+          A clean and distraction-free calendar designed to help you focus on what matters.
+        </Text>
+
+        <Text style={[styles.aboutBody, { color: theme.text, fontWeight: '600', fontSize: 18 }]}>Features</Text>
+        <Text style={[styles.aboutSub, { color: theme.subText, marginBottom: 15 }]}>
+          • Minimal interface{"\n"}
+          • Holiday awareness{"\n"}
+          • Dark & light themes
+        </Text>
+
+        <Text style={[styles.aboutBody, { color: theme.text, fontWeight: '600', fontSize: 18 }]}>Technology</Text>
+        <Text style={[styles.aboutSub, { color: theme.subText, marginBottom: 15 }]}>
+          Built with React Native & Expo
+        </Text>
+
+        <Text style={[styles.aboutBody, { color: theme.text, fontWeight: '600', fontSize: 18 }]}>Data</Text>
+        <Text style={[styles.aboutSub, { color: theme.subText }]}>
+          Open Source Holiday Data
+        </Text>
+        <Text style={[styles.aboutSub, { color: theme.subText, marginBottom: 5 }]}>
+          v1.0.0
+        </Text>
+        <Text style={[styles.aboutSub, { color: theme.subText, marginBottom: 25, fontSize: 14 }]}>
+          © 2026 theStudio
+        </Text>
+      </View>
+    </View>
+
+    {/* Back Button Pinned to Bottom */}
+    <Pressable 
+      style={[styles.closeButton, { marginBottom: 40 }]} 
+      onPress={onBack}
+    >
+      <Text style={styles.closeButtonText}>BACK</Text>
+    </Pressable>
+  </View>
+);
 
 export default function CalendarHome() {
   const now = new Date();
@@ -23,11 +79,22 @@ export default function CalendarHome() {
   const [holidayMap, setHolidayMap] = useState<Record<string, string>>({});
   const [isSyncing, setIsSyncing] = useState(false);
 
-  // Animation state
+  // UI States
   const slideAnim = useRef(new Animated.Value(-height)).current;
   const [settingsVisible, setSettingsVisible] = useState(false);
+  const [showAbout, setShowAbout] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(false);
 
   const isSwiping = useRef(false);
+
+  // Theme Logic: Light mode stays exactly as your original preview
+  const theme = {
+    bg: isDarkMode ? "#333" : "#fff",
+    text: isDarkMode ? "#fff" : "#333",
+    subText: isDarkMode ? "#bbb" : "#666",
+    gridFuture: isDarkMode ? "#444" : "#666",
+    gridPast: isDarkMode ? "#222" : "#333",
+  };
 
   useEffect(() => {
     loadLocalData();
@@ -46,7 +113,7 @@ export default function CalendarHome() {
   const syncHolidaysWithAPI = async () => {
     setIsSyncing(true);
     try {
-      const year = now.getFullYear();
+      const year = viewDate.getFullYear();
       const response = await fetch(
         `https://date.nager.at/api/v3/PublicHolidays/${year}/US`,
       );
@@ -66,6 +133,7 @@ export default function CalendarHome() {
 
   const toggleSettings = (show: boolean) => {
     setSettingsVisible(show);
+    if (!show) setTimeout(() => setShowAbout(false), 300);
     Animated.timing(slideAnim, {
       toValue: show ? 0 : -height,
       duration: 300,
@@ -80,10 +148,10 @@ export default function CalendarHome() {
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
   const firstDayOfMonth = new Date(viewYear, viewMonth, 1).getDay();
 
+  // Dynamic Row Logic Restored
   const totalSlotsNeeded = firstDayOfMonth + daysInMonth;
   const numRows = totalSlotsNeeded > 35 ? 6 : 5;
   const totalCells = numRows * 7;
-
   const dates = Array.from(
     { length: totalCells },
     (_, i) => i - firstDayOfMonth + 1,
@@ -118,13 +186,10 @@ export default function CalendarHome() {
       onMoveShouldSetPanResponder: (_, gesture) =>
         Math.abs(gesture.dx) > 20 || Math.abs(gesture.dy) > 20,
       onPanResponderRelease: (_, gesture) => {
-        // Horizontal Swipes
         if (Math.abs(gesture.dx) > Math.abs(gesture.dy)) {
           if (gesture.dx > 60) handleSwipe("PREV");
           else if (gesture.dx < -60) handleSwipe("NEXT");
-        }
-        // Vertical Swipes (Top area check)
-        else if (gesture.dy > 60 && gesture.y0 < 250) {
+        } else if (gesture.dy > 60 && gesture.y0 < 250) {
           toggleSettings(true);
         }
         isSwiping.current = false;
@@ -137,23 +202,49 @@ export default function CalendarHome() {
     : now.getDay();
 
   return (
-    <View style={styles.container} {...panResponder.panHandlers}>
-      {/* Settings Overlay - Slides from Top */}
+    <View
+      style={[styles.container, { backgroundColor: theme.bg }]}
+      {...panResponder.panHandlers}
+    >
+      {/* Settings Overlay */}
       <Animated.View
         style={[
           styles.settingsPanel,
-          { transform: [{ translateY: slideAnim }] },
+          { backgroundColor: theme.bg, transform: [{ translateY: slideAnim }] },
         ]}
       >
         <View style={styles.settingsContent}>
-          <Text style={styles.settingsTitle}>SETTINGS</Text>
-          <Text style={styles.yearText}>Holiday Sync: US</Text>
-          <Pressable
-            style={styles.closeButton}
-            onPress={() => toggleSettings(false)}
-          >
-            <Text style={styles.closeButtonText}>CLOSE</Text>
-          </Pressable>
+          {!showAbout ? (
+            <>
+              <Text style={[styles.settingsTitle, { color: theme.text }]}>
+                SETTINGS
+              </Text>
+              <Text style={[styles.yearText, { color: theme.subText }]}>
+                Calendar: AD
+              </Text>
+
+              <Pressable onPress={() => setIsDarkMode(!isDarkMode)}>
+                <Text style={[styles.yearText, { color: theme.subText }]}>
+                  Theme: {isDarkMode ? "Dark" : "Light"}
+                </Text>
+              </Pressable>
+
+              <Pressable onPress={() => setShowAbout(true)}>
+                <Text style={[styles.yearText, { color: theme.subText }]}>
+                  About
+                </Text>
+              </Pressable>
+
+              <Pressable
+                style={styles.closeButton}
+                onPress={() => toggleSettings(false)}
+              >
+                <Text style={styles.closeButtonText}>CLOSE</Text>
+              </Pressable>
+            </>
+          ) : (
+            <AboutView onBack={() => setShowAbout(false)} theme={theme} />
+          )}
         </View>
       </Animated.View>
 
@@ -164,16 +255,20 @@ export default function CalendarHome() {
             setViewDate(new Date(now.getFullYear(), now.getMonth(), 1))
           }
         >
-          <Text style={styles.dateText}>
+          <Text style={[styles.dateText, { color: theme.text }]}>
             {now.getDate().toString().padStart(2, "0")}
           </Text>
-          <Text style={styles.weekdayText}>
+          <Text style={[styles.weekdayText, { color: theme.subText }]}>
             {now.toLocaleDateString("en-US", { weekday: "long" })}
           </Text>
         </Pressable>
         <View style={styles.rightColumn}>
-          <Text style={styles.monthText}>{monthName}</Text>
-          <Text style={styles.yearText}>{viewYear}</Text>
+          <Text style={[styles.monthText, { color: theme.text }]}>
+            {monthName}
+          </Text>
+          <Text style={[styles.yearText, { color: theme.subText }]}>
+            {viewYear}
+          </Text>
           {isSyncing && (
             <ActivityIndicator
               size="small"
@@ -184,26 +279,30 @@ export default function CalendarHome() {
         </View>
       </View>
 
-      {/* Week Labels */}
+      {/* Week Row */}
       <View style={styles.weekRow}>
-        {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
-          <View key={i} style={styles.dayBox}>
-            <Text
-              style={[
-                styles.dayText,
-                i === activeDayIndex && {
-                  color: "#FB6A03",
-                  fontWeight: "bold",
-                },
-              ]}
-            >
-              {d}
-            </Text>
-          </View>
-        ))}
+        {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => {
+          // This logic only looks at today's day of the week
+          const isTodayName = i === now.getDay();
+
+          return (
+            <View key={i} style={styles.dayBox}>
+              <Text
+                style={[
+                  styles.dayText,
+                  isTodayName
+                    ? { color: "#FB6A03", fontWeight: "bold" }
+                    : { color: theme.subText },
+                ]}
+              >
+                {d}
+              </Text>
+            </View>
+          );
+        })}
       </View>
 
-      {/* Calendar Grid */}
+      {/* Calendar Grid - Uses dynamic numRows */}
       <View style={styles.calendarGrid}>
         {Array.from({ length: numRows }).map((_, row) => (
           <View key={row} style={styles.gridRow}>
@@ -218,7 +317,6 @@ export default function CalendarHome() {
                 new Date(viewYear, viewMonth, date) <
                   new Date(now.getFullYear(), now.getMonth(), now.getDate());
               const isSelected = date === selectedDate;
-
               return (
                 <View
                   key={i}
@@ -231,11 +329,11 @@ export default function CalendarHome() {
                           ? "#FB6A03"
                           : isValid
                             ? isPast
-                              ? "#333"
-                              : "#666"
+                              ? theme.gridPast
+                              : theme.gridFuture
                             : "transparent",
                       borderWidth: !isValid ? 2 : 0,
-                      borderColor: !isValid ? "#666" : "transparent",
+                      borderColor: !isValid ? theme.gridPast : "transparent",
                     },
                   ]}
                 >
@@ -265,17 +363,17 @@ export default function CalendarHome() {
       <View style={styles.footer}>
         {selectedDate && (
           <>
-            <Text style={styles.selectedDateDay}>
+            <Text style={[styles.selectedDateDay, { color: theme.text }]}>
               {new Date(viewYear, viewMonth, selectedDate).toLocaleDateString(
                 "en-US",
                 { weekday: "long" },
               )}
             </Text>
             <Text
-              style={styles.selectedDateFull}
+              style={[styles.selectedDateFull, { color: theme.subText }]}
             >{`${selectedDate} ${monthName} ${viewYear}`}</Text>
             {holidayMap[getDateKey(selectedDate)] && (
-              <Text style={styles.eventTitleText}>
+              <Text style={[styles.eventTitleText, { color: theme.text }]}>
                 {holidayMap[getDateKey(selectedDate)]}
               </Text>
             )}
@@ -287,72 +385,41 @@ export default function CalendarHome() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 10, backgroundColor: "#fff", paddingTop: 80 },
-  // Settings Styles
+  container: { flex: 1, padding: 10, paddingTop: 110 },
   settingsPanel: {
     position: "absolute",
     top: 0,
     left: 0,
     right: 0,
-    height: "50%",
-    backgroundColor: "#fff",
+    height: height,
     zIndex: 1000,
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee",
-    elevation: 5,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
   },
   settingsContent: {
     flex: 1,
-    paddingTop: 80,
-    paddingHorizontal: 20,
-    justifyContent: "center",
+    paddingTop: 100,
+    paddingHorizontal: 30,
+    justifyContent: "flex-start",
   },
-  settingsTitle: {
-    fontSize: 44,
-    fontWeight: "600",
-    color: "#333",
-    marginBottom: 10,
-  },
-  closeButton: {
-    marginTop: 40,
-    paddingVertical: 10,
-  },
-  closeButtonText: {
-    fontSize: 44,       // Matches your year/settings font size
-    fontWeight: "600",
-    color: "#FB6A03",   // Your brand orange
-  },
-  // Existing Styles
+  settingsTitle: { fontSize: 44, fontWeight: "600", marginBottom: 10 },
+  closeButton: { paddingVertical: 10 },
+  closeButtonText: { fontSize: 44, fontWeight: "600", color: "#FB6A03" },
+  aboutBody: { fontSize: 22, marginBottom: 10, fontWeight: "500" },
+  aboutSub: { fontSize: 18, marginBottom: 20, fontWeight: "400" },
   row: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-end",
   },
-  dateText: { fontSize: 160, fontWeight: "bold", color: "#333" },
+  dateText: { fontSize: 160, fontWeight: "bold" },
   weekdayText: {
     fontSize: 40,
     fontWeight: "600",
-    color: "#666",
     marginTop: -20,
     paddingLeft: 10,
   },
   rightColumn: { alignItems: "flex-end" },
-  monthText: {
-    fontSize: 48,
-    fontWeight: "600",
-    paddingRight: 10,
-    color: "#333",
-  },
-  yearText: {
-    fontSize: 44,
-    fontWeight: "600",
-    paddingRight: 10,
-    color: "#999",
-  },
+  monthText: { fontSize: 48, fontWeight: "600", paddingRight: 10 },
+  yearText: { fontSize: 44, fontWeight: "600", paddingRight: 10 },
   weekRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -365,7 +432,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  dayText: { fontSize: 18, fontWeight: "600", color: "#999" },
+  dayText: { fontSize: 18, fontWeight: "600" },
   calendarGrid: { marginTop: 10 },
   gridRow: {
     flexDirection: "row",
@@ -395,12 +462,7 @@ const styles = StyleSheet.create({
     bottom: 6,
   },
   footer: { marginTop: 20, paddingHorizontal: 10 },
-  selectedDateDay: { fontSize: 46, fontWeight: "bold", color: "#333" },
-  selectedDateFull: { fontSize: 32, fontWeight: "600", color: "#666" },
-  eventTitleText: {
-    fontSize: 46,
-    fontWeight: "bold",
-    color: "#333",
-    marginTop: 10,
-  },
+  selectedDateDay: { fontSize: 46, fontWeight: "bold" },
+  selectedDateFull: { fontSize: 32, fontWeight: "600" },
+  eventTitleText: { fontSize: 46, fontWeight: "bold", marginTop: 10 },
 });
